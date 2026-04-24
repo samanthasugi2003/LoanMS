@@ -1,0 +1,43 @@
+# Multi-stage build to minimize image size
+FROM maven:3.8.1-openjdk-11 AS builder
+
+# Set working directory
+WORKDIR /build
+
+# Copy pom.xml and source files
+COPY pom.xml .
+COPY src ./src
+
+# Build the application
+RUN mvn clean package -DskipTests
+
+# Runtime stage - use lightweight OpenJDK image
+FROM openjdk:11-jre-slim
+
+# Metadata
+LABEL maintainer="Bank of Kigali"
+LABEL description="Bank of Kigali Loan Management System"
+LABEL version="1.0.0"
+
+# Set working directory
+WORKDIR /app
+
+# Copy the built JAR from builder stage
+COPY --from=builder /build/target/loan.jar /app/loan.jar
+
+# Create a non-root user for security
+RUN useradd -m -u 1000 loanuser
+USER loanuser
+
+# Expose port (informational - the app uses console I/O)
+EXPOSE 8080
+
+# Health check (optional - app is interactive)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD java -version || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["java", "-jar", "loan.jar"]
+
+# Default command (can be overridden)
+CMD []
